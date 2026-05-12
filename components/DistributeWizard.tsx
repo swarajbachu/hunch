@@ -31,12 +31,14 @@ export function DistributeWizard({
   adminCode,
   depositedWei,
   mode,
+  alreadyEnded,
   onClose,
 }: {
   roomCode: string;
   adminCode: string;
   depositedWei: bigint;
   mode: "onchain" | "simulated";
+  alreadyEnded: boolean;
   onClose: () => void;
 }) {
   const leaderboard = useQuery(api.leaderboard.topByRoom, {
@@ -159,7 +161,9 @@ export function DistributeWizard({
         ) : (
           <>
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-black">Distribute the pool</h2>
+              <h2 className="text-2xl font-black">
+                {alreadyEnded ? "Distribute the pool" : "Preview distribution"}
+              </h2>
               <button
                 onClick={onClose}
                 className="text-white/40 hover:text-white text-xl"
@@ -175,6 +179,11 @@ export function DistributeWizard({
               </span>
               {mode === "simulated" && (
                 <span className="ml-2 text-amber-300">(simulated)</span>
+              )}
+              {!alreadyEnded && (
+                <span className="ml-2 text-white/40">
+                  · live preview — end the presentation to finalize
+                </span>
               )}
             </p>
 
@@ -286,17 +295,26 @@ export function DistributeWizard({
               )}
             </section>
 
-            <button
-              onClick={sign}
-              disabled={busy || allocations.winners.length === 0}
-              className="rounded-xl bg-emerald-500 hover:bg-emerald-400 text-emerald-950 py-3 font-black disabled:opacity-50"
-            >
-              {busy
-                ? "Finalizing…"
-                : mode === "onchain"
-                ? "Sign finalize tx →"
-                : "Finalize (simulated) →"}
-            </button>
+            {alreadyEnded ? (
+              <button
+                onClick={sign}
+                disabled={busy || allocations.winners.length === 0}
+                className="rounded-xl bg-emerald-500 hover:bg-emerald-400 text-emerald-950 py-3 font-black disabled:opacity-50"
+              >
+                {busy
+                  ? "Finalizing…"
+                  : mode === "onchain"
+                  ? "Sign finalize tx →"
+                  : "Finalize (simulated) →"}
+              </button>
+            ) : (
+              <button
+                onClick={onClose}
+                className="rounded-xl bg-white/10 hover:bg-white/15 py-3 font-semibold text-white/80"
+              >
+                Close preview
+              </button>
+            )}
           </>
         )}
       </div>

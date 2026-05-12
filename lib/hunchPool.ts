@@ -86,6 +86,38 @@ async function ensureCorrectChain(wallet: ReturnType<typeof createWalletClient>)
   }
 }
 
+export async function pickInjectedAccount(): Promise<Address | null> {
+  if (typeof window === "undefined") return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const eth = (window as any).ethereum;
+  if (!eth) return null;
+  // Force MetaMask to re-prompt the account picker instead of reusing the
+  // previously-connected account.
+  try {
+    await eth.request({
+      method: "wallet_requestPermissions",
+      params: [{ eth_accounts: {} }],
+    });
+  } catch {
+    // user dismissed — fall through and use the existing accounts list
+  }
+  const accounts = (await eth.request({ method: "eth_accounts" })) as Address[];
+  return accounts[0] ?? null;
+}
+
+export async function getConnectedAccount(): Promise<Address | null> {
+  if (typeof window === "undefined") return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const eth = (window as any).ethereum;
+  if (!eth) return null;
+  try {
+    const accounts = (await eth.request({ method: "eth_accounts" })) as Address[];
+    return accounts[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function depositToPool(
   roomCode: string,
   amountMon: string

@@ -12,6 +12,7 @@ import type * as leaderboard from "../leaderboard.js";
 import type * as payouts from "../payouts.js";
 import type * as questions from "../questions.js";
 import type * as rooms from "../rooms.js";
+import type * as seed from "../seed.js";
 import type * as users from "../users.js";
 import type * as votes from "../votes.js";
 
@@ -26,6 +27,7 @@ declare const fullApi: ApiFromModules<{
   payouts: typeof payouts;
   questions: typeof questions;
   rooms: typeof rooms;
+  seed: typeof seed;
   users: typeof users;
   votes: typeof votes;
 }>;
