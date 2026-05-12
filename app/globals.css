@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body {
+  height: 100%;
+  background: #0b0b12;
+  color: #fff;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+body {
+  min-height: 100dvh;
+  background:
+    radial-gradient(1200px 600px at -10% -20%, rgba(124,58,237,0.25), transparent 60%),
+    radial-gradient(900px 500px at 110% 0%, rgba(236,72,153,0.20), transparent 60%),
+    #0b0b12;
+}
+
+* { box-sizing: border-box; }
+button { -webkit-tap-highlight-color: transparent; }
