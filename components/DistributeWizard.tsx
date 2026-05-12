@@ -16,13 +16,17 @@ import {
   type Curve,
   type Player,
 } from "@/lib/distribute";
+import { AllocationBars } from "./distribute/AllocationBars";
+import { CurveCompare } from "./distribute/CurveCompare";
+import { SqrtCurve } from "./distribute/SqrtCurve";
+import { MetricTiles } from "./distribute/MetricTiles";
 
 const STARTING_POINTS = 1000;
 const DEFAULT_GAS_DRIP = parseEther("0.005");
 
 const CURVE_DESCRIPTIONS: Record<Curve, string> = {
-  quadratic: "share ∝ √points — flatter, rewards participation",
-  linear: "share ∝ points — top-heavy",
+  quadratic: "share ∝ √points — rewards breadth over whales",
+  linear: "share ∝ points — top-heavy, winner-take-most",
   equal: "everyone in the cut gets the same",
 };
 
@@ -63,6 +67,8 @@ export function DistributeWizard({
     [leaderboard]
   );
 
+  const gasDrip = mode === "onchain" ? DEFAULT_GAS_DRIP : 0n;
+
   const allocations = useMemo(
     () =>
       computeAllocations(players, {
@@ -71,9 +77,9 @@ export function DistributeWizard({
         excludeBelowStart,
         startingPoints: STARTING_POINTS,
         poolWei: depositedWei,
-        gasDripPerWinnerWei: mode === "onchain" ? DEFAULT_GAS_DRIP : 0n,
+        gasDripPerWinnerWei: gasDrip,
       }),
-    [players, percent, curve, excludeBelowStart, depositedWei, mode]
+    [players, percent, curve, excludeBelowStart, depositedWei, gasDrip]
   );
 
   const totalDistributed = allocations.winners.reduce(
@@ -131,10 +137,10 @@ export function DistributeWizard({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center p-4">
-      <div className="w-full max-w-2xl max-h-[90dvh] overflow-y-auto rounded-3xl bg-zinc-950 border border-white/10 p-6 flex flex-col gap-5">
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center p-4 overflow-y-auto">
+      <div className="w-full max-w-3xl my-8 rounded-3xl bg-zinc-950 border border-white/10 p-5 sm:p-6 flex flex-col gap-5">
         {done ? (
-          <div className="text-center py-8">
+          <div className="text-center py-10">
             <div className="text-5xl mb-3">🎉</div>
             <h2 className="text-2xl font-black">Pool distributed</h2>
             <p className="text-white/60 mt-2">
@@ -160,140 +166,126 @@ export function DistributeWizard({
           </div>
         ) : (
           <>
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-black">
-                {alreadyEnded ? "Distribute the pool" : "Preview distribution"}
-              </h2>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-2xl font-black">
+                  {alreadyEnded ? "Distribute the pool" : "Preview distribution"}
+                </h2>
+                <p className="text-xs text-white/50 mt-1">
+                  {alreadyEnded
+                    ? "Sign once to send every winner their share."
+                    : "Live preview — end the presentation to finalize."}
+                  {mode === "simulated" && (
+                    <span className="ml-1 text-amber-300">· simulated mode</span>
+                  )}
+                </p>
+              </div>
               <button
                 onClick={onClose}
-                className="text-white/40 hover:text-white text-xl"
+                className="text-white/40 hover:text-white text-2xl leading-none"
                 aria-label="Close"
               >
                 ×
               </button>
             </div>
-            <p className="text-sm text-white/60">
-              Pool:{" "}
-              <span className="font-mono font-bold text-white">
-                {formatEther(depositedWei)} MON
-              </span>
-              {mode === "simulated" && (
-                <span className="ml-2 text-amber-300">(simulated)</span>
-              )}
-              {!alreadyEnded && (
-                <span className="ml-2 text-white/40">
-                  · live preview — end the presentation to finalize
-                </span>
-              )}
-            </p>
 
-            <section className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <label className="text-sm uppercase tracking-widest text-white/40">
-                  Top % cut
-                </label>
-                <span className="text-2xl font-black tabular-nums">{percent}%</span>
-              </div>
-              <input
-                type="range"
-                min={5}
-                max={100}
-                step={5}
-                value={percent}
-                onChange={(e) => setPercent(Number(e.target.value))}
-                className="accent-brand-500"
-              />
-              <label className="flex items-center gap-2 text-sm text-white/60 mt-1">
+            <MetricTiles
+              poolWei={depositedWei}
+              allocations={allocations.winners}
+              distributableWei={allocations.distributable}
+              curve={curve}
+            />
+
+            <section className="grid sm:grid-cols-[1fr_auto] gap-3 items-center">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] uppercase tracking-widest text-white/40">
+                    Top % cut
+                  </label>
+                  <span className="text-lg font-black tabular-nums">
+                    {percent}%
+                  </span>
+                </div>
                 <input
-                  type="checkbox"
-                  checked={excludeBelowStart}
-                  onChange={(e) => setExcludeBelowStart(e.target.checked)}
-                  className="accent-brand-500"
+                  type="range"
+                  min={5}
+                  max={100}
+                  step={5}
+                  value={percent}
+                  onChange={(e) => setPercent(Number(e.target.value))}
+                  className="w-full accent-brand-500"
                 />
-                Only players above {STARTING_POINTS} pts (skip the inactive)
-              </label>
-            </section>
-
-            <section className="flex flex-col gap-2">
-              <label className="text-sm uppercase tracking-widest text-white/40">
-                Curve
-              </label>
-              <div className="flex gap-2">
-                {(["quadratic", "linear", "equal"] as Curve[]).map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => setCurve(c)}
-                    className={`flex-1 px-3 py-2 rounded-xl border text-sm font-semibold capitalize ${
-                      curve === c
-                        ? "bg-brand-600 border-brand-500"
-                        : "bg-white/5 border-white/10 hover:bg-white/10"
-                    }`}
-                  >
-                    {c}
-                  </button>
-                ))}
-              </div>
-              <p className="text-xs text-white/40">{CURVE_DESCRIPTIONS[curve]}</p>
-            </section>
-
-            <section className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <label className="text-sm uppercase tracking-widest text-white/40">
-                  Preview · {allocations.winners.length} winner
-                  {allocations.winners.length === 1 ? "" : "s"}
+                <label className="flex items-center gap-2 text-[11px] text-white/50 mt-1.5">
+                  <input
+                    type="checkbox"
+                    checked={excludeBelowStart}
+                    onChange={(e) => setExcludeBelowStart(e.target.checked)}
+                    className="accent-brand-500"
+                  />
+                  Skip players still at starting {STARTING_POINTS} pts
                 </label>
-                <span className="text-xs text-white/40">
-                  {formatEther(totalDistributed)} /{" "}
-                  {formatEther(allocations.distributable)} MON distributable
-                </span>
               </div>
-              <div className="rounded-xl border border-white/10 bg-black/40 max-h-64 overflow-y-auto">
-                {allocations.winners.length === 0 ? (
-                  <div className="p-4 text-white/40 text-sm">
-                    No eligible winners with current settings.
-                  </div>
-                ) : (
-                  <ol className="flex flex-col">
-                    {allocations.winners.map((a) => (
-                      <li
-                        key={a.address}
-                        className="flex items-center justify-between gap-3 px-4 py-2 border-b border-white/5 last:border-0"
-                      >
-                        <span className="flex items-center gap-3 min-w-0">
-                          <span className="w-6 text-center text-white/40 font-bold">
-                            {a.rank}
-                          </span>
-                          <span className="truncate font-semibold">
-                            {a.displayName}
-                          </span>
-                          <span className="text-xs text-white/40">
-                            {a.points} pts
-                          </span>
-                        </span>
-                        <span className="flex items-center gap-2 shrink-0">
-                          <span className="text-xs text-white/40">
-                            {(a.share * 100).toFixed(1)}%
-                          </span>
-                          <span className="font-mono font-bold tabular-nums">
-                            {Number(formatEther(a.amountWei)).toFixed(4)}
-                          </span>
-                          <span className="text-xs text-white/40">MON</span>
-                        </span>
-                      </li>
-                    ))}
-                  </ol>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[11px] uppercase tracking-widest text-white/40">
+                  Curve
+                </span>
+                <div className="flex gap-1.5">
+                  {(["linear", "quadratic", "equal"] as Curve[]).map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setCurve(c)}
+                      className={`px-3 py-1.5 rounded-lg border text-xs font-semibold capitalize ${
+                        curve === c
+                          ? "bg-brand-600 border-brand-500"
+                          : "bg-white/5 border-white/10 hover:bg-white/10"
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-white/40 max-w-[220px]">
+                  {CURVE_DESCRIPTIONS[curve]}
+                </p>
+              </div>
+            </section>
+
+            <div className="grid lg:grid-cols-[1.4fr_1fr] gap-4">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs uppercase tracking-widest text-white/40">
+                    Allocations
+                  </span>
+                  <span className="text-[10px] text-white/40">
+                    {Number(formatEther(totalDistributed)).toFixed(4)} /{" "}
+                    {Number(formatEther(allocations.distributable)).toFixed(4)}{" "}
+                    MON
+                  </span>
+                </div>
+                <AllocationBars allocations={allocations.winners} />
+                {mode === "onchain" && allocations.reservedForDrip > 0n && (
+                  <p className="text-[10px] text-white/40">
+                    +{" "}
+                    <span className="font-mono">
+                      {formatEther(allocations.reservedForDrip)}
+                    </span>{" "}
+                    MON reserved as gas drip so winners can self-claim.
+                  </p>
                 )}
               </div>
-              {mode === "onchain" && allocations.reservedForDrip > 0n && (
-                <p className="text-xs text-white/40">
-                  +{" "}
-                  <span className="font-mono">
-                    {formatEther(allocations.reservedForDrip)}
-                  </span>{" "}
-                  MON reserved as gas drip so winners can self-claim.
-                </p>
-              )}
-            </section>
+              <div className="flex flex-col gap-3">
+                <SqrtCurve allocations={allocations.winners} curve={curve} />
+                <CurveCompare
+                  players={players}
+                  percentile={percent / 100}
+                  excludeBelowStart={excludeBelowStart}
+                  startingPoints={STARTING_POINTS}
+                  poolWei={depositedWei}
+                  gasDripPerWinnerWei={gasDrip}
+                  selected={curve}
+                />
+              </div>
+            </div>
 
             {alreadyEnded ? (
               <button
@@ -308,12 +300,14 @@ export function DistributeWizard({
                   : "Finalize (simulated) →"}
               </button>
             ) : (
-              <button
-                onClick={onClose}
-                className="rounded-xl bg-white/10 hover:bg-white/15 py-3 font-semibold text-white/80"
-              >
-                Close preview
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={onClose}
+                  className="flex-1 rounded-xl bg-white/10 hover:bg-white/15 py-3 font-semibold text-white/80"
+                >
+                  Close preview
+                </button>
+              </div>
             )}
           </>
         )}

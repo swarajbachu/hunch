@@ -10,9 +10,10 @@ import {
   depositToPool,
   explorerTxUrl,
   getConnectedAccount,
-  pickInjectedAccount,
 } from "@/lib/hunchPool";
+import { getSelectedProvider } from "@/lib/walletProviders";
 import { DistributeWizard } from "./DistributeWizard";
+import { WalletPicker } from "./WalletPicker";
 
 export function PoolPanel({
   roomCode,
@@ -25,12 +26,16 @@ export function PoolPanel({
   const recordDeposit = useMutation(api.rooms.recordDeposit);
   const endPresentation = useMutation(api.rooms.endPresentation);
   const [amount, setAmount] = useState("0.1");
-  const [busy, setBusy] = useState<null | "deposit" | "end" | "switch">(null);
+  const [busy, setBusy] = useState<null | "deposit" | "end">(null);
   const [showWizard, setShowWizard] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
   const [connected, setConnected] = useState<string | null>(null);
+  const [providerName, setProviderName] = useState<string | null>(null);
 
   useEffect(() => {
     getConnectedAccount().then((acc) => setConnected(acc));
+    const selected = getSelectedProvider();
+    if (selected) setProviderName(selected.name);
   }, []);
 
   if (!room) return null;
@@ -41,19 +46,6 @@ export function PoolPanel({
   const finalized = !!room.poolFinalized;
   const mode = room.poolMode ?? (onchainAvailable ? "onchain" : "simulated");
   const isSim = mode === "simulated";
-
-  async function onSwitchWallet() {
-    setBusy("switch");
-    try {
-      const next = await pickInjectedAccount();
-      setConnected(next);
-      if (next) toast.success(`Connected ${next.slice(0, 6)}…${next.slice(-4)}`);
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
-  }
 
   async function onDeposit() {
     const trimmed = amount.trim();
@@ -131,10 +123,12 @@ export function PoolPanel({
 
         {onchainAvailable && (
           <div className="flex items-center justify-between gap-2 text-xs">
-            <span className="text-white/40 truncate">
+            <span className="text-white/40 truncate min-w-0">
               {connected ? (
                 <>
-                  wallet{" "}
+                  {providerName && (
+                    <span className="text-white/70">{providerName}</span>
+                  )}{" "}
                   <span className="font-mono">
                     {connected.slice(0, 6)}…{connected.slice(-4)}
                   </span>
@@ -144,15 +138,10 @@ export function PoolPanel({
               )}
             </span>
             <button
-              onClick={onSwitchWallet}
-              disabled={busy !== null}
-              className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] shrink-0 disabled:opacity-50"
+              onClick={() => setShowPicker(true)}
+              className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] shrink-0"
             >
-              {busy === "switch"
-                ? "…"
-                : connected
-                ? "Switch wallet"
-                : "Connect"}
+              {connected ? "Switch" : "Connect"}
             </button>
           </div>
         )}
@@ -245,6 +234,15 @@ export function PoolPanel({
           onClose={() => setShowWizard(false)}
         />
       )}
+
+      <WalletPicker
+        open={showPicker}
+        onClose={() => setShowPicker(false)}
+        onPicked={(addr, name) => {
+          setConnected(addr);
+          setProviderName(name);
+        }}
+      />
     </>
   );
 }

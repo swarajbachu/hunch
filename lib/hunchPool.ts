@@ -11,6 +11,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { monadTestnet } from "./wagmi";
+import { getActiveProvider } from "./walletProviders";
 
 export const HUNCH_POOL_ADDRESS =
   (process.env.NEXT_PUBLIC_HUNCH_POOL_CONTRACT as Address | undefined) ?? null;
@@ -71,9 +72,7 @@ export function getPublicClient() {
 }
 
 function getInjectedWallet() {
-  if (typeof window === "undefined") return null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const eth = (window as any).ethereum;
+  const eth = getActiveProvider();
   if (!eth) return null;
   return createWalletClient({ chain: monadTestnet, transport: custom(eth) });
 }
@@ -87,28 +86,35 @@ async function ensureCorrectChain(wallet: ReturnType<typeof createWalletClient>)
 }
 
 export async function pickInjectedAccount(): Promise<Address | null> {
-  if (typeof window === "undefined") return null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const eth = (window as any).ethereum;
+  const eth = getActiveProvider();
   if (!eth) return null;
-  // Force MetaMask to re-prompt the account picker instead of reusing the
-  // previously-connected account.
   try {
     await eth.request({
       method: "wallet_requestPermissions",
       params: [{ eth_accounts: {} }],
     });
   } catch {
-    // user dismissed — fall through and use the existing accounts list
+    // user dismissed — fall through to whatever's already authorized
   }
   const accounts = (await eth.request({ method: "eth_accounts" })) as Address[];
   return accounts[0] ?? null;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function requestAccountsOn(eth: any): Promise<Address | null> {
+  if (!eth) return null;
+  try {
+    const accounts = (await eth.request({
+      method: "eth_requestAccounts",
+    })) as Address[];
+    return accounts[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getConnectedAccount(): Promise<Address | null> {
-  if (typeof window === "undefined") return null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const eth = (window as any).ethereum;
+  const eth = getActiveProvider();
   if (!eth) return null;
   try {
     const accounts = (await eth.request({ method: "eth_accounts" })) as Address[];
