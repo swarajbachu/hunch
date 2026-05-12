@@ -51,6 +51,12 @@ export const getByCode = query({
       name: room.name,
       adminAddress: room.adminAddress,
       createdAt: room.createdAt,
+      poolDepositWei: room.poolDepositWei ?? null,
+      poolDepositTxHash: room.poolDepositTxHash ?? null,
+      poolFinalized: room.poolFinalized ?? false,
+      poolFinalizeTxHash: room.poolFinalizeTxHash ?? null,
+      poolMode: room.poolMode ?? null,
+      endedAt: room.endedAt ?? null,
     };
   },
 });
@@ -62,5 +68,40 @@ export const setAdminAddress = mutation({
     if (!room) throw new Error("Room not found");
     if (room.adminCode !== adminCode) throw new Error("Invalid admin code");
     await ctx.db.patch(room._id, { adminAddress: address.toLowerCase() });
+  },
+});
+
+export const recordDeposit = mutation({
+  args: {
+    roomCode: v.string(),
+    adminCode: v.string(),
+    amountWei: v.string(),
+    txHash: v.optional(v.string()),
+    mode: v.union(v.literal("onchain"), v.literal("simulated")),
+  },
+  handler: async (ctx, { roomCode, adminCode, amountWei, txHash, mode }) => {
+    const room = await getRoomByCode(ctx, roomCode);
+    if (!room) throw new Error("Room not found");
+    if (room.adminCode !== adminCode) throw new Error("Invalid admin code");
+    if (room.poolFinalized) throw new Error("Pool already finalized");
+
+    const prev = BigInt(room.poolDepositWei ?? "0");
+    const next = prev + BigInt(amountWei);
+    await ctx.db.patch(room._id, {
+      poolDepositWei: next.toString(),
+      poolDepositTxHash: txHash ?? room.poolDepositTxHash,
+      poolMode: mode,
+    });
+  },
+});
+
+export const endPresentation = mutation({
+  args: { roomCode: v.string(), adminCode: v.string() },
+  handler: async (ctx, { roomCode, adminCode }) => {
+    const room = await getRoomByCode(ctx, roomCode);
+    if (!room) throw new Error("Room not found");
+    if (room.adminCode !== adminCode) throw new Error("Invalid admin code");
+    if (room.endedAt) return;
+    await ctx.db.patch(room._id, { endedAt: Date.now() });
   },
 });

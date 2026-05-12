@@ -28,6 +28,13 @@ export function readBurner(roomCode: string): PrivateKeyAccount | null {
   }
 }
 
+export function readBurnerPk(roomCode: string): `0x${string}` | null {
+  if (typeof window === "undefined") return null;
+  const pk = window.localStorage.getItem(KEY(roomCode)) as `0x${string}` | null;
+  if (!pk || !pk.startsWith("0x")) return null;
+  return pk;
+}
+
 export function saveDisplayName(roomCode: string, name: string) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(NAME_KEY(roomCode), name);

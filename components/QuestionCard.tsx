@@ -2,6 +2,7 @@
 
 import { motion, MotionValue, useTransform } from "framer-motion";
 import { ReactNode } from "react";
+import { CountdownRing } from "./CountdownRing";
 
 const GRADIENTS: Record<string, string> = {
   default: "from-violet-500/30 via-fuchsia-500/20 to-rose-500/10",
@@ -19,6 +20,8 @@ export type CardData = {
   noCount: number;
   resolved: boolean;
   outcome?: "YES" | "NO" | null;
+  startedAt?: number;
+  durationMs?: number;
 };
 
 export function QuestionCard({
@@ -39,11 +42,11 @@ export function QuestionCard({
       <div className="absolute inset-0 bg-[radial-gradient(60%_60%_at_50%_0%,rgba(255,255,255,0.08),transparent)]" />
 
       <div className="relative h-full flex flex-col p-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between">
           <span className="px-3 py-1 rounded-full bg-white/10 border border-white/15 text-xs uppercase tracking-widest text-white/80">
             {card.category ?? "Live"}
           </span>
-          {card.resolved && (
+          {card.resolved ? (
             <span
               className={`px-3 py-1 rounded-full text-xs font-semibold border ${
                 card.outcome === "YES"
@@ -53,7 +56,13 @@ export function QuestionCard({
             >
               Resolved · {card.outcome}
             </span>
-          )}
+          ) : card.startedAt ? (
+            <CountdownRing
+              startedAt={card.startedAt}
+              durationMs={card.durationMs}
+              size={56}
+            />
+          ) : null}
         </div>
 
         <div className="flex-1 flex items-center justify-center">

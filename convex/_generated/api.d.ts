@@ -9,6 +9,7 @@
  */
 
 import type * as leaderboard from "../leaderboard.js";
+import type * as payouts from "../payouts.js";
 import type * as questions from "../questions.js";
 import type * as rooms from "../rooms.js";
 import type * as users from "../users.js";
@@ -22,6 +23,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   leaderboard: typeof leaderboard;
+  payouts: typeof payouts;
   questions: typeof questions;
   rooms: typeof rooms;
   users: typeof users;

@@ -20,6 +20,11 @@ export const submit = mutation({
     if (!question) throw new Error("Question not found");
     if (question.roomId !== room._id) throw new Error("Question not in room");
     if (question.resolved) throw new Error("Question already resolved");
+    if (!question.startedAt) throw new Error("Question hasn't started yet");
+    const duration = question.durationMs ?? 30_000;
+    if (Date.now() > question.startedAt + duration) {
+      throw new Error("Time's up on this one");
+    }
 
     const user = await ctx.db
       .query("users")
@@ -68,6 +73,16 @@ export const listByUser = query({
       .withIndex("by_user", (q) =>
         q.eq("roomId", room._id).eq("userAddress", address.toLowerCase())
       )
+      .collect();
+  },
+});
+
+export const listByQuestion = query({
+  args: { questionId: v.id("questions") },
+  handler: async (ctx, { questionId }) => {
+    return await ctx.db
+      .query("votes")
+      .withIndex("by_question", (q) => q.eq("questionId", questionId))
       .collect();
   },
 });

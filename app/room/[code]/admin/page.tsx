@@ -9,6 +9,7 @@ import { AdminQuestionForm } from "@/components/AdminQuestionForm";
 import { AdminQuestionRow } from "@/components/AdminQuestionRow";
 import { RoomQR } from "@/components/RoomQR";
 import { Leaderboard } from "@/components/Leaderboard";
+import { PoolPanel } from "@/components/PoolPanel";
 
 type RouteParams = Promise<{ code: string }>;
 
@@ -94,6 +95,7 @@ export default function AdminPage({ params }: { params: RouteParams }) {
 
         <aside className="flex flex-col gap-5">
           <RoomQR code={code} />
+          <PoolPanel roomCode={code} adminCode={adminCode} />
           <div>
             <h3 className="text-sm uppercase tracking-widest text-white/40 mb-2">
               Leaderboard

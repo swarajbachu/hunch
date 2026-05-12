@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -11,6 +11,7 @@ import { CardData } from "@/components/QuestionCard";
 import { PointsPill } from "@/components/PointsPill";
 import { Leaderboard } from "@/components/Leaderboard";
 import { WinCelebration } from "@/components/WinCelebration";
+import { ClaimCard } from "@/components/ClaimCard";
 
 type RouteParams = Promise<{ code: string }>;
 
@@ -58,16 +59,30 @@ function Room({
   roomName: string;
   address: string;
 }) {
+  const room = useQuery(api.rooms.getByCode, { code });
   const questions = useQuery(api.questions.listByRoom, { roomCode: code });
   const meDoc = useQuery(api.users.getMe, { roomCode: code, address });
   const votesByUser = useQuery(api.votes.listByUser, { roomCode: code, address });
   const submitVote = useMutation(api.votes.submit);
 
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setTick((t) => t + 1), 500);
+    return () => window.clearInterval(id);
+  }, []);
+
   const cards: CardData[] = useMemo(() => {
     if (!questions || !votesByUser) return [];
     const votedIds = new Set(votesByUser.map((v) => v.questionId as string));
+    const now = Date.now();
     return questions
-      .filter((q) => !q.resolved && !votedIds.has(q._id))
+      .filter((q) => {
+        if (q.resolved) return false;
+        if (votedIds.has(q._id)) return false;
+        if (!q.startedAt) return false;
+        const dur = q.durationMs ?? 30_000;
+        return now < q.startedAt + dur;
+      })
       .map((q) => ({
         id: q._id,
         text: q.text,
@@ -76,8 +91,42 @@ function Room({
         noCount: q.noCount,
         resolved: q.resolved,
         outcome: q.outcome,
+        startedAt: q.startedAt,
+        durationMs: q.durationMs,
       }));
-  }, [questions, votesByUser]);
+    // tick dep forces re-eval as timers expire client-side
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [questions, votesByUser, tick]);
+
+  // "Missed it" toast: notice when an active card expires without our vote.
+  // On mount we mark everything already expired as "seen" so we don't toast history.
+  const seenMissedRef = useRef<Set<string>>(new Set());
+  const missedInitedRef = useRef(false);
+  useEffect(() => {
+    if (!questions || !votesByUser) return;
+    const votedIds = new Set(votesByUser.map((v) => v.questionId as string));
+    const now = Date.now();
+    if (!missedInitedRef.current) {
+      for (const q of questions) {
+        if (q.startedAt && now >= q.startedAt + (q.durationMs ?? 30_000)) {
+          seenMissedRef.current.add(q._id);
+        }
+      }
+      missedInitedRef.current = true;
+      return;
+    }
+    for (const q of questions) {
+      if (q.resolved) continue;
+      if (!q.startedAt) continue;
+      const dur = q.durationMs ?? 30_000;
+      const expired = now >= q.startedAt + dur;
+      if (!expired) continue;
+      if (votedIds.has(q._id)) continue;
+      if (seenMissedRef.current.has(q._id)) continue;
+      seenMissedRef.current.add(q._id);
+      toast("⏰ Missed it", { description: q.text });
+    }
+  }, [questions, votesByUser, tick]);
 
   async function handleSwipe(card: CardData, side: "YES" | "NO") {
     try {
@@ -131,23 +180,33 @@ function Room({
 
       <div className="flex-1 flex items-center justify-center">
         <div className="w-full max-w-sm">
-          <SwipeDeck cards={cards} onSwipe={handleSwipe} />
-          <div className="mt-6 flex justify-between gap-3">
-            <button
-              onClick={() => cards[0] && handleSwipe(cards[0], "NO")}
-              disabled={cards.length === 0}
-              className="flex-1 py-3 rounded-2xl border border-rose-400/40 bg-rose-500/15 hover:bg-rose-500/25 disabled:opacity-40 font-black text-rose-200"
-            >
-              ← NO
-            </button>
-            <button
-              onClick={() => cards[0] && handleSwipe(cards[0], "YES")}
-              disabled={cards.length === 0}
-              className="flex-1 py-3 rounded-2xl border border-emerald-400/40 bg-emerald-500/15 hover:bg-emerald-500/25 disabled:opacity-40 font-black text-emerald-200"
-            >
-              YES →
-            </button>
-          </div>
+          {room?.poolFinalized ? (
+            <ClaimCard
+              roomCode={code}
+              address={address}
+              mode={room.poolMode}
+            />
+          ) : (
+            <>
+              <SwipeDeck cards={cards} onSwipe={handleSwipe} />
+              <div className="mt-6 flex justify-between gap-3">
+                <button
+                  onClick={() => cards[0] && handleSwipe(cards[0], "NO")}
+                  disabled={cards.length === 0}
+                  className="flex-1 py-3 rounded-2xl border border-rose-400/40 bg-rose-500/15 hover:bg-rose-500/25 disabled:opacity-40 font-black text-rose-200"
+                >
+                  ← NO
+                </button>
+                <button
+                  onClick={() => cards[0] && handleSwipe(cards[0], "YES")}
+                  disabled={cards.length === 0}
+                  className="flex-1 py-3 rounded-2xl border border-emerald-400/40 bg-emerald-500/15 hover:bg-emerald-500/25 disabled:opacity-40 font-black text-emerald-200"
+                >
+                  YES →
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
