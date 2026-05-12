@@ -1,0 +1,13 @@
+node_modules/
+.next/
+.env.local
+.env*.local
+*.log
+.DS_Store
+
+# Convex local backend
+.convex/
+.vercel
+
+# build artifacts
+tsconfig.tsbuildinfo
